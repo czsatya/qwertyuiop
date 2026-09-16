@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const ffmpegPath = require('ffmpeg-static');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -101,7 +102,7 @@ app.post('/api/stream/start', (req, res) => {
         rtmpUrl
     ];
 
-    currentStreamProcess = spawn('ffmpeg', ffmpegArgs);
+    currentStreamProcess = spawn(ffmpegPath, ffmpegArgs);
 
     currentStreamState = {
         isActive: true,
