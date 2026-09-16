@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud Live Stream Server</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding: 20px; background-color: #f8f9fa; }
+        .card { margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .status-badge { font-size: 1.1em; padding: 10px 20px; }
+    </style>
+</head>
+<body>
+
+<div class="container max-w-lg mx-auto" style="max-width: 800px;">
+    <h2 class="mb-4 text-center">☁️ Cloud Video Streaming Server</h2>
+
+    <!-- Status Panel -->
+    <div class="card">
+        <div class="card-body text-center">
+            <h4>Stream Status</h4>
+            <div id="statusBadge" class="badge bg-secondary status-badge mt-2 mb-3">Checking...</div>
+            <p id="currentStreamInfo" class="text-muted"></p>
+            <button id="btnStop" class="btn btn-danger w-100" style="display: none;" onclick="stopStream()">🛑 Stop Active Stream</button>
+        </div>
+    </div>
+
+    <!-- Upload Panel -->
+    <div class="card">
+        <div class="card-body">
+            <h4>1. Upload Video</h4>
+            <form id="uploadForm">
+                <div class="mb-3">
+                    <input type="file" class="form-control" id="videoFile" accept="video/mp4,video/x-mkv,video/x-msvideo" required>
+                </div>
+                <button type="submit" class="btn btn-primary w-100" id="btnUpload">⬆️ Upload Video</button>
+            </form>
+            <div id="uploadProgress" class="progress mt-3" style="display: none;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%">Uploading...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Stream Panel -->
+    <div class="card" id="startPanel">
+        <div class="card-body">
+            <h4>2. Start Stream</h4>
+            <div class="mb-3">
+                <label class="form-label">Select Video</label>
+                <select class="form-select" id="videoSelect">
+                    <option value="">Loading videos...</option>
+                </select>
+                <button class="btn btn-sm btn-outline-secondary mt-2" onclick="loadVideos()">🔄 Refresh List</button>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">RTMP URL (e.g. YouTube/Facebook)</label>
+                <input type="text" class="form-control" id="rtmpUrl" placeholder="rtmp://a.rtmp.youtube.com/live2/YOUR-STREAM-KEY">
+                <small class="text-muted">Combine the Server URL and Stream Key into one link.</small>
+            </div>
+            
+            <button class="btn btn-success w-100" id="btnStart" onclick="startStream()">▶️ Start Stream (Loop)</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // State management
+    async function updateStatus() {
+        try {
+            const res = await fetch('/api/stream/status');
+            const data = await res.json();
+            
+            const badge = document.getElementById('statusBadge');
+            const info = document.getElementById('currentStreamInfo');
+            const btnStop = document.getElementById('btnStop');
+            const startPanel = document.getElementById('startPanel');
+
+            if (data.isActive) {
+                badge.className = 'badge bg-success status-badge mt-2 mb-3';
+                badge.innerText = '🔴 LIVE';
+                info.innerHTML = `<strong>Streaming:</strong> ${data.video}<br><small>Since: ${new Date(data.startTime).toLocaleString()}</small>`;
+                btnStop.style.display = 'block';
+                startPanel.style.opacity = '0.5';
+                startPanel.style.pointerEvents = 'none'; // Disable starting new stream while one is running
+            } else {
+                badge.className = 'badge bg-secondary status-badge mt-2 mb-3';
+                badge.innerText = '⚫ OFFLINE';
+                info.innerText = 'No active stream.';
+                btnStop.style.display = 'none';
+                startPanel.style.opacity = '1';
+                startPanel.style.pointerEvents = 'auto';
+            }
+        } catch (err) {
+            console.error('Failed to fetch status', err);
+        }
+    }
+
+    async function loadVideos() {
+        try {
+            const res = await fetch('/api/videos');
+            const data = await res.json();
+            const select = document.getElementById('videoSelect');
+            select.innerHTML = '';
+            
+            if (data.videos.length === 0) {
+                select.innerHTML = '<option value="">No videos found. Upload one first.</option>';
+                return;
+            }
+
+            data.videos.forEach(v => {
+                const opt = document.createElement('option');
+                opt.value = v;
+                opt.innerText = v;
+                select.appendChild(opt);
+            });
+        } catch (err) {
+            console.error('Failed to load videos', err);
+        }
+    }
+
+    async function startStream() {
+        const video = document.getElementById('videoSelect').value;
+        const rtmpUrl = document.getElementById('rtmpUrl').value.trim();
+
+        if (!video || !rtmpUrl) {
+            alert("Please select a video and provide an RTMP URL.");
+            return;
+        }
+
+        document.getElementById('btnStart').disabled = true;
+        
+        try {
+            const res = await fetch('/api/stream/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ video, rtmpUrl })
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                alert("Stream started!");
+            } else {
+                alert("Error: " + data.error);
+            }
+        } catch (err) {
+            alert("Connection error.");
+        }
+        
+        document.getElementById('btnStart').disabled = false;
+        updateStatus();
+    }
+
+    async function stopStream() {
+        if (!confirm("Are you sure you want to stop the stream?")) return;
+        
+        try {
+            const res = await fetch('/api/stream/stop', { method: 'POST' });
+            if (res.ok) {
+                alert("Stream stopped.");
+            } else {
+                alert("Error stopping stream.");
+            }
+        } catch (err) {
+            alert("Connection error.");
+        }
+        updateStatus();
+    }
+
+    // File Upload handling
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fileInput = document.getElementById('videoFile');
+        if (!fileInput.files[0]) return;
+
+        const formData = new FormData();
+        formData.append('video', fileInput.files[0]);
+
+        const btn = document.getElementById('btnUpload');
+        const progress = document.getElementById('uploadProgress');
+        
+        btn.disabled = true;
+        progress.style.display = 'flex';
+
+        try {
+            const res = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+            if (res.ok) {
+                alert("Upload successful!");
+                fileInput.value = '';
+                loadVideos();
+            } else {
+                alert("Upload failed.");
+            }
+        } catch (err) {
+            alert("Connection error during upload.");
+        }
+
+        btn.disabled = false;
+        progress.style.display = 'none';
+    });
+
+    // Init
+    setInterval(updateStatus, 5000); // Check status every 5 seconds
+    updateStatus();
+    loadVideos();
+</script>
+
+</body>
+</html>
