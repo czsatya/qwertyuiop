@@ -84,6 +84,7 @@ app.post('/api/stream/start', (req, res) => {
     
     // FFmpeg command to loop the video and stream via RTMP
     const ffmpegArgs = [
+        '-loglevel', 'debug',   // Enable detailed debug logs
         '-re',                  // Read input at native frame rate
         '-stream_loop', '-1',   // Infinite loop
         '-i', videoPath,        // Input file
@@ -103,16 +104,19 @@ app.post('/api/stream/start', (req, res) => {
     };
 
     currentStreamProcess.stdout.on('data', (data) => {
-        // Output from ffmpeg stdout (if any)
+        console.log(`FFmpeg stdout: ${data.toString()}`);
     });
 
     currentStreamProcess.stderr.on('data', (data) => {
-        // FFmpeg writes its progress to stderr
-        console.log(`FFmpeg: ${data}`);
+        console.log(`FFmpeg: ${data.toString()}`);
     });
 
-    currentStreamProcess.on('close', (code) => {
-        console.log(`FFmpeg process exited with code ${code}`);
+    currentStreamProcess.on('error', (err) => {
+        console.error(`FFmpeg process error:`, err);
+    });
+
+    currentStreamProcess.on('close', (code, signal) => {
+        console.log(`FFmpeg process exited with code ${code} and signal ${signal}`);
         currentStreamState.isActive = false;
         currentStreamProcess = null;
     });
