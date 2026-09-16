@@ -87,17 +87,8 @@ app.post('/api/stream/start', (req, res) => {
         '-re',                  // Read input at native frame rate
         '-stream_loop', '-1',   // Infinite loop
         '-i', videoPath,        // Input file
-        '-c:v', 'libx264',      // Video codec
-        '-preset', 'veryfast',  // Encoding speed
-        '-b:v', '3000k',        // Video bitrate
-        '-maxrate', '3000k',
-        '-bufsize', '6000k',
-        '-pix_fmt', 'yuv420p',
-        '-g', '50',             // Keyframe interval (important for live streams)
-        '-c:a', 'aac',          // Audio codec
-        '-b:a', '128k',         // Audio bitrate
-        '-ac', '2',
-        '-ar', '44100',
+        '-c:v', 'copy',         // Stream copy video (No CPU usage)
+        '-c:a', 'copy',         // Stream copy audio (No CPU usage)
         '-f', 'flv',            // Output format for RTMP
         rtmpUrl
     ];
